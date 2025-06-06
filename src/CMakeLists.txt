@@ -83,7 +83,11 @@ else()
   add_library(${PROJECT_NAME} STATIC ${HDRS} ${COMMON_HDRS} ${SRCS} ${COMMON_SRCS} ${COMMON_RESOURCES})
 endif()
 
-set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${SO${GUI}_VERSION} SOVERSION ${SO${GUI}_SO_VERSION})
+if(WIN32 AND NOT MINGW)
+  set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${PROJECT_VERSION} SOVERSION ${SO${GUI}_SO_VERSION})
+else()
+  set_target_properties(${PROJECT_NAME} PROPERTIES VERSION "${SO${GUI}_SO_VERSION}.${PROJECT_VERSION_MINOR}.${PROJECT_VERSION_PATCH}" SOVERSION ${SO${GUI}_SO_VERSION})
+endif()
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE HAVE_CONFIG_H SO${GUI}_INTERNAL SO${GUI}_DEBUG=$<CONFIG:Debug>)
 
@@ -252,6 +256,56 @@ if(SO${GUI}_BUILD_DOCUMENTATION)
   endif()
 endif()
 
+# Add a target to generate new modern API documentation with Doxygen
+if(SO${GUI}_BUILD_AWESOME_DOCUMENTATION)
+  find_package(Doxygen)
+  if(NOT DOXYGEN_FOUND)
+    message(FATAL_ERROR "Doxygen is needed to build the documentation.")
+  endif()
+
+  if(NOT "${Coin_DOC_DIR}" STREQUAL "")
+    get_filename_component(_coin_versioned_dir ${Coin_DOC_DIR} NAME)
+    set(DOXYGEN_TAGFILES "${Coin_DOC_DIR}/html/Coin.tag=../../${_coin_versioned_dir}/html")
+  endif()
+
+# ############################################################################
+# Setup documentation options
+# ############################################################################
+  set(GENERATE_HTMLHELP NO)
+  set(DOXYGEN_GENERATE_MAN NO)
+  set(GENERATE_QHP NO)
+  set(GENERATE_TREEVIEW YES)
+  set(DOXYGEN_INTERNAL_DOCS NO)
+  set(DOXYGEN_EXTRACT_PRIVATE NO)
+  set(DOXYGEN_WARN_IF_UNDOCUMENTED YES)
+  set(DOXYGEN_EXCLUDE)
+  set(GITHUB_LINK "https://github.com/coin3d/so${gui}")
+
+  set(DOXYFILE_AWESOME "${CMAKE_CURRENT_BINARY_DIR}/Doxyfile_awesome")
+  set(HTML_HEADER_AWESOME "${CMAKE_BINARY_DIR}/header_awesome.html")
+  set(DOXYGEN_OUTPUT_AWESOME "${CMAKE_BINARY_DIR}/html_awesome/index.html")
+  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/Inventor/${Gui}/common/sogui.doxygen.awesome.cmake.in" ${DOXYFILE_AWESOME} @ONLY)
+  configure_file("${CMAKE_CURRENT_SOURCE_DIR}/Inventor/${Gui}/common/docs/doxygen-awesome/doxygen-custom/header.html.cmake.in" ${HTML_HEADER_AWESOME} @ONLY)
+
+# ############################################################################
+# Setup documentation targets
+# ############################################################################
+  add_custom_command(
+    OUTPUT ${DOXYGEN_OUTPUT_AWESOME}
+    COMMAND ${CMAKE_COMMAND} -E echo_append "Generating modern API documentation with Doxygen "
+    COMMAND ${DOXYGEN_EXECUTABLE} ${DOXYFILE_AWESOME}
+    COMMAND ${CMAKE_COMMAND} -E echo "done."
+    WORKING_DIRECTORY "${CMAKE_BINARY_DIR}"
+    DEPENDS ${DOXYFILE_AWESOME}
+  )
+  add_custom_target(documentation_awesome ALL DEPENDS ${DOXYGEN_OUTPUT_AWESOME})
+
+# ############################################################################
+# Install built documentation files
+# ############################################################################
+  install(DIRECTORY "${CMAKE_BINARY_DIR}/html_awesome" DESTINATION ${CMAKE_INSTALL_DOCDIR} COMPONENT documentation REGEX ".*\\.(chm|qch)" EXCLUDE)
+endif()
+
 # ############################################################################
 # Installation headers
 # ############################################################################
@@ -416,19 +470,32 @@ else()
 # Install target
 # ############################################################################
 
-  install(TARGETS ${PROJECT_NAME} EXPORT ${PROJECT_NAME}
-    ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT development
-    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT runtime NAMELINK_SKIP
-    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT runtime
-    PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT development
-    #PRIVATE_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT development
-    RESOURCE DESTINATION ${CMAKE_INSTALL_DATADIR}/${PROJECT_NAME} COMPONENT development
-  )
-
-  if(SO${GUI}_BUILD_SHARED_LIBS)
-    install(TARGETS ${PROJECT_NAME} EXPORT ${PROJECT_NAME} LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT development NAMELINK_ONLY)
-    if(MSVC)
-      install(FILES $<TARGET_PDB_FILE:${PROJECT_NAME}> DESTINATION ${CMAKE_INSTALL_BINDIR} CONFIGURATIONS Debug RelWithDebInfo COMPONENT debug)
+  if(NOT CMAKE_VERSION VERSION_LESS 3.12)
+    install(TARGETS ${PROJECT_NAME} EXPORT ${PROJECT_NAME}
+      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT development
+      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT runtime NAMELINK_COMPONENT development
+      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT runtime
+      PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT development
+      RESOURCE DESTINATION ${CMAKE_INSTALL_DATADIR}/${PROJECT_NAME} COMPONENT development
+    )
+    if(SO${GUI}_BUILD_SHARED_LIBS)
+      if(MSVC)
+        install(FILES $<TARGET_PDB_FILE:${PROJECT_NAME}> DESTINATION ${CMAKE_INSTALL_BINDIR} CONFIGURATIONS Debug RelWithDebInfo COMPONENT debug)
+      endif()
+    endif()
+  else()
+    install(TARGETS ${PROJECT_NAME} EXPORT ${PROJECT_NAME}
+      ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT development
+      LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT runtime NAMELINK_SKIP
+      RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR} COMPONENT runtime
+      PUBLIC_HEADER DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} COMPONENT development
+      RESOURCE DESTINATION ${CMAKE_INSTALL_DATADIR}/${PROJECT_NAME} COMPONENT development
+    )
+    if(SO${GUI}_BUILD_SHARED_LIBS)
+      install(TARGETS ${PROJECT_NAME} EXPORT ${PROJECT_NAME} LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR} COMPONENT development NAMELINK_ONLY)
+      if(MSVC)
+        install(FILES $<TARGET_PDB_FILE:${PROJECT_NAME}> DESTINATION ${CMAKE_INSTALL_BINDIR} CONFIGURATIONS Debug RelWithDebInfo COMPONENT debug)
+      endif()
     endif()
   endif()
 endif()

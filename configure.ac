@@ -7,7 +7,7 @@
 # out and releasing as 1.2.1 -- if not, release as 1.3.0. 20050701 mortene.
 m4_define([SOXT_MAJOR], [1])
 m4_define([SOXT_MINOR], [4])
-m4_define([SOXT_MICRO], [0])
+m4_define([SOXT_MICRO], [1])
 m4_define([SOXT_BETA], [])
 
 m4_define([VERSION_STRING], [SOXT_MAJOR.SOXT_MINOR.SOXT_MICRO[]SOXT_BETA])
@@ -176,7 +176,7 @@ AC_ARG_WITH(
 AC_ARG_WITH(
   [suffix],
   [AC_HELP_STRING([--with-suffix=string],
-                  [specify lirary name suffix (e.g. "_g")])],
+                  [specify library name suffix (e.g. "_g")])],
   [SUFFIX=$withval],
   [SUFFIX=])
 
